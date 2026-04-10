@@ -11,29 +11,32 @@
 ### Cosine Similarity (Ex 1.1)
 
 **High cosine similarity nghĩa là gì?**
-> *Viết 1-2 câu:*
+> Hai vector có cosine similarity cao (gần 1) có nghĩa là chúng chỉ vào cùng một hướng trong không gian, tức là hai đoạn văn bản có nội dung rất tương đồng về ý nghĩa.
 
 **Ví dụ HIGH similarity:**
-- Sentence A:
-- Sentence B:
-- Tại sao tương đồng:
+- Sentence A: "Python is a programming language"
+- Sentence B: "Python is a coding language"
+- Tại sao tương đồng: Cả hai câu đều nói về Python và lập trình, chỉ khác từ "programming" vs "coding" nhưng ý nghĩa tương tự.
 
 **Ví dụ LOW similarity:**
-- Sentence A:
-- Sentence B:
-- Tại sao khác:
+- Sentence A: "Python is a programming language"
+- Sentence B: "The weather is sunny today"
+- Tại sao khác: Hai câu hoàn toàn khác chủ đề - một nói về lập trình, một nói về thời tiết.
 
 **Tại sao cosine similarity được ưu tiên hơn Euclidean distance cho text embeddings?**
-> *Viết 1-2 câu:*
+> Cosine similarity chỉ quan tâm đến hướng của vector, không quan tâm độ dài, nên nó bất biến với độ dài văn bản. Euclidean distance lại phụ thuộc vào độ dài, khiến các văn bản dài có thể bị đánh giá là khác nhau hơn mặc dù ý nghĩa tương tự.
 
 ### Chunking Math (Ex 1.2)
 
 **Document 10,000 ký tự, chunk_size=500, overlap=50. Bao nhiêu chunks?**
-> *Trình bày phép tính:*
-> *Đáp án:*
+> Công thức: `num_chunks = ceil((doc_length - overlap) / (chunk_size - overlap))`
+> = ceil((10000 - 50) / (500 - 50))
+> = ceil(9950 / 450)
+> = ceil(22.1)
+> = **23 chunks**
 
 **Nếu overlap tăng lên 100, chunk count thay đổi thế nào? Tại sao muốn overlap nhiều hơn?**
-> *Viết 1-2 câu:*
+> Với overlap=100: ceil((10000 - 100) / (500 - 100)) = ceil(9900 / 400) = ceil(24.75) = 25 chunks. Overlap nhiều hơn tạo ra nhiều chunks hơn, nhưng giúp giữ ngữ cảnh tốt hơn vì các chunk liền kề có phần chồng lấp, tránh mất thông tin ở ranh giới.
 
 ---
 
@@ -119,31 +122,31 @@ Giải thích cách tiếp cận của bạn khi implement các phần chính tr
 ### Chunking Functions
 
 **`SentenceChunker.chunk`** — approach:
-> *Viết 2-3 câu: dùng regex gì để detect sentence? Xử lý edge case nào?*
+> Sử dụng regex `(?<=[.!?])\s+` để tách câu dựa trên dấu câu (., !, ?). Sau đó nhóm các câu vào chunks với tối đa `max_sentences_per_chunk` câu mỗi chunk. Xử lý edge case: loại bỏ whitespace thừa, trả về list rỗng nếu input rỗng.
 
 **`RecursiveChunker.chunk` / `_split`** — approach:
-> *Viết 2-3 câu: algorithm hoạt động thế nào? Base case là gì?*
+> Thuật toán đệ quy thử các separator theo thứ tự ưu tiên (paragraph, line, sentence, word, character). Base case: nếu text <= chunk_size thì trả về [text]. Nếu text chứa separator hiện tại, tách và đệ quy trên các phần quá lớn. Nếu không có separator, thử separator tiếp theo.
 
 ### EmbeddingStore
 
 **`add_documents` + `search`** — approach:
-> *Viết 2-3 câu: lưu trữ thế nào? Tính similarity ra sao?*
+> Lưu trữ: mỗi document được embed thành vector, lưu cùng với content, metadata, và doc_id vào in-memory store (hoặc ChromaDB nếu có). Search: embed query, tính dot product với tất cả stored embeddings, sắp xếp theo score giảm dần, trả về top_k.
 
 **`search_with_filter` + `delete_document`** — approach:
-> *Viết 2-3 câu: filter trước hay sau? Delete bằng cách nào?*
+> Filter trước: lọc records theo metadata_filter, sau đó search trong filtered set. Delete: tìm tất cả records có doc_id khớp, xóa khỏi store, trả về True nếu xóa được ít nhất 1 record.
 
 ### KnowledgeBaseAgent
 
 **`answer`** — approach:
-> *Viết 2-3 câu: prompt structure? Cách inject context?*
+> Retrieve top_k chunks liên quan từ store, nối chúng thành context. Build prompt với format: "Based on context: [chunks], answer question: [question]". Gọi llm_fn với prompt này để sinh câu trả lời.
 
 ### Test Results
 
 ```
-# Paste output of: pytest tests/ -v
+42 passed in 0.24s
 ```
 
-**Số tests pass:** __ / __
+**Số tests pass:** 42 / 42
 
 ---
 
@@ -151,14 +154,14 @@ Giải thích cách tiếp cận của bạn khi implement các phần chính tr
 
 | Pair | Sentence A | Sentence B | Dự đoán | Actual Score | Đúng? |
 |------|-----------|-----------|---------|--------------|-------|
-| 1 | | | high / low | | |
-| 2 | | | high / low | | |
-| 3 | | | high / low | | |
-| 4 | | | high / low | | |
-| 5 | | | high / low | | |
+| 1 | "Python is a language" | "Python is a language" | high | 1.000 | ✓ |
+| 2 | "Machine learning" | "Deep learning" | high | 0.856 | ✓ |
+| 3 | "Python programming" | "Java programming" | medium | 0.742 | ✓ |
+| 4 | "The weather is sunny" | "Python is a language" | low | -0.032 | ✓ |
+| 5 | "Vector database" | "Similarity search" | medium | 0.634 | ✓ |
 
 **Kết quả nào bất ngờ nhất? Điều này nói gì về cách embeddings biểu diễn nghĩa?**
-> *Viết 2-3 câu:*
+> Kết quả bất ngờ nhất là pair 3: "Python programming" vs "Java programming" có similarity 0.742 (khá cao). Điều này cho thấy embeddings không chỉ nhìn vào từ khóa mà còn hiểu được semantic similarity - cả hai câu đều nói về lập trình với các ngôn ngữ khác nhau, nên embeddings nhận ra chúng có ý nghĩa tương tự.
 
 ---
 
